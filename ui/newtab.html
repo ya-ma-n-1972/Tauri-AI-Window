@@ -6,26 +6,30 @@
   <style>
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
-    body { display: flex; flex-direction: column; align-items: center; justify-content: center;
-      font-family: system-ui, sans-serif; background: #fafafa; color: #333; gap: 16px; }
-    h1 { font-size: 18px; font-weight: 500; color: #888; margin: 0; }
-    #addr { width: min(560px, 80vw); padding: 12px 16px; font-size: 15px;
-      border: 1px solid #ccc; border-radius: 8px; outline: none; }
-    #addr:focus { border-color: #79a; box-shadow: 0 0 0 3px #79a3; }
-    .hint { color: #aaa; font-size: 12px; }
-    #bookmarks { width: min(900px, 90vw); display: grid; gap: 10px;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); margin-top: 8px; }
-    .card { padding: 12px 14px; border: 1px solid #ddd; border-radius: 8px; background: #fff;
-      cursor: pointer; overflow: hidden; }
-    .card:hover { border-color: #79a; box-shadow: 0 1px 4px #0001; }
-    .card .title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .card .url { font-size: 12px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    body { display: flex; flex-direction: column; align-items: center;
+      font-family: system-ui, sans-serif; background: #fafafa; color: #333;
+      padding: 14vh 24px 40px; }
+    h1 { font-weight: 300; color: #555; margin: 0 0 24px; font-size: 28px; letter-spacing: 0.05em; }
+    #addr { width: 60%; max-width: 640px; padding: 12px 18px; font-size: 16px;
+      border: 1px solid #ccc; border-radius: 24px; outline: none; background: #fff; }
+    #addr:focus { border-color: #4a90e2; box-shadow: 0 0 0 3px rgba(74,144,226,0.18); }
+    .hint { color: #888; margin: 16px 0 0; font-size: 13px; }
+    h2 { font-size: 14px; color: #888; font-weight: 500; margin: 32px 0 12px; letter-spacing: 0.04em; }
+    #bookmarks { width: 100%; max-width: 900px; display: grid; gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+    .card { background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 14px 16px;
+      cursor: pointer; overflow: hidden; transition: box-shadow 0.15s, transform 0.15s; }
+    .card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.1); transform: translateY(-1px); }
+    .card .title { font-size: 13px; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card .url { font-size: 11px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
     .empty { color: #aaa; font-size: 13px; }
   </style>
 </head>
 <body>
-  <h1>Tauri AI Window</h1>
-  <input id="addr" type="text" placeholder="URL を入力して Enter" autocomplete="off" />
+  <h1>新しいタブ</h1>
+  <input id="addr" type="text" placeholder="URL を入力して Enter (例: example.com)" autocomplete="off" spellcheck="false" />
+  <p class="hint">スキームを省略すると https:// が補われます</p>
+  <h2>ブックマーク</h2>
   <div id="bookmarks"></div>
   <script src="newtab.js"></script>
 </body>

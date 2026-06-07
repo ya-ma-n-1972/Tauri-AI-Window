@@ -5,6 +5,12 @@ const { listen } = window.__TAURI__.event;
 
 const addrInput = document.getElementById('addr');
 
+let profilesCache = []; // [{ id, name, createdAt }]
+function profileName(id) {
+  const p = profilesCache.find(x => x.id === id);
+  return p ? p.name : id;
+}
+
 function selectedProfile() {
   const sel = document.getElementById('profile');
   return sel.value || 'default';
@@ -81,7 +87,11 @@ async function refreshWindows() {
 
     const span = document.createElement('span');
     span.className = 'grow';
-    span.textContent = `${bw.label} (${bw.tabCount} tabs)`;
+    span.appendChild(document.createTextNode(`${bw.label} (${bw.tabCount} tabs)`));
+    const sub = document.createElement('span');
+    sub.className = 'sub';
+    sub.textContent = ` — ${profileName(bw.profileId)}`;
+    span.appendChild(sub);
     li.appendChild(span);
 
     const focusBtn = document.createElement('button');
@@ -263,6 +273,7 @@ document.getElementById('clear-history').addEventListener('click', async () => {
 async function refreshProfiles() {
   let items = [];
   try { items = await invoke('list_profiles'); } catch (err) { console.warn('list_profiles', err); }
+  profilesCache = items;
 
   // ドロップダウン (現在選択を保持)
   const sel = document.getElementById('profile');
@@ -288,6 +299,9 @@ async function refreshProfiles() {
       : [];
     return makeItem(p.name, `id: ${p.id}` + (removable ? '' : '（既定）'), buttons);
   }), '(なし)');
+
+  // ウィンドウ一覧のプロファイル名表示を更新。
+  await refreshWindows();
 }
 
 async function addProfile() {

@@ -9,11 +9,11 @@
     * { box-sizing: border-box; }
     body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; }
     h1 { font-size: 16px; margin: 0 0 12px; }
-    .muted { color: #888; font-size: 13px; }
-    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+    h2 { font-size: 13px; margin: 16px 0 6px; color: #888; }
+    .muted { color: #888; font-size: 12px; }
+    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
     input[type=text] { flex: 1; min-width: 0; padding: 6px 8px; font-size: 13px; }
     button { padding: 6px 12px; font-size: 13px; cursor: pointer; }
-    h2 { font-size: 13px; margin: 16px 0 6px; color: #888; }
     ul { list-style: none; margin: 0; padding: 0; }
     li { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border: 1px solid #8884; border-radius: 4px; margin-bottom: 4px; }
     li .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -22,44 +22,63 @@
     li.dl-failed .grow { color: #c44; }
     li.dl-canceled .grow { color: #888; text-decoration: line-through; }
     .status { flex-shrink: 0; font-size: 12px; color: #888; }
+
+    .profile-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px;
+      border: 1px solid #8884; border-radius: 6px; }
+    .profile-bar label { font-weight: 500; }
+    .profile-bar select { padding: 4px 8px; font-size: 13px; min-width: 160px; }
+
+    details { margin: 8px 0; border: 1px solid #8883; border-radius: 6px; padding: 4px 10px; }
+    details > summary { cursor: pointer; font-weight: bold; font-size: 13px; padding: 4px 0; color: #888; }
+    details[open] > summary { margin-bottom: 6px; }
   </style>
 </head>
 <body>
   <h1>Tauri AI Window — Console</h1>
-  <div class="row">
+
+  <div class="profile-bar">
     <label for="profile">プロファイル:</label>
     <select id="profile" title="選択したプロファイルで開きます"></select>
     <span class="muted">選択したプロファイルで下のサイトを開きます</span>
   </div>
+
   <div class="row" id="ai-sites">
     <button id="open-blank">新規ブランクウィンドウ</button>
     <!-- AI サイトの直リンボタンは console.js の AI_SITES から生成 -->
   </div>
+
   <div class="row">
     <input id="addr" type="text" placeholder="URL を入力して新規ウィンドウ" autocomplete="off" />
     <button id="open-url">URLで開く</button>
   </div>
-  <h2>ブラウザウィンドウ</h2>
+
+  <h2>開いているウィンドウ</h2>
   <ul id="bw-list"><li class="empty">(なし)</li></ul>
 
-  <h2>ブックマーク</h2>
-  <ul id="bookmarks"><li class="empty">(なし)</li></ul>
+  <details>
+    <summary>プロファイル管理</summary>
+    <ul id="profile-list"><li class="empty">(なし)</li></ul>
+    <div class="row">
+      <input id="profile-name" type="text" placeholder="新規プロファイル名 (例: Work)" autocomplete="off" />
+      <button id="add-profile">追加</button>
+    </div>
+  </details>
 
-  <div class="row" style="justify-content: space-between;">
-    <h2 style="margin:0;">履歴</h2>
-    <button id="clear-history">クリア</button>
-  </div>
-  <ul id="history"><li class="empty">(なし)</li></ul>
+  <details open>
+    <summary>ブックマーク</summary>
+    <ul id="bookmarks"><li class="empty">(なし)</li></ul>
+  </details>
 
-  <h2>ダウンロード</h2>
-  <ul id="downloads"><li class="empty">(なし)</li></ul>
+  <details>
+    <summary>履歴 (最新 100 件)</summary>
+    <div class="row"><button id="clear-history">クリア</button></div>
+    <ul id="history"><li class="empty">(なし)</li></ul>
+  </details>
 
-  <h2>プロファイル</h2>
-  <div class="row">
-    <input id="profile-name" type="text" placeholder="新しいプロファイル名" autocomplete="off" />
-    <button id="add-profile">追加</button>
-  </div>
-  <ul id="profile-list"><li class="empty">(なし)</li></ul>
+  <details>
+    <summary>ダウンロード (このセッション)</summary>
+    <ul id="downloads"><li class="empty">(なし)</li></ul>
+  </details>
 
   <script src="console.js"></script>
 </body>
