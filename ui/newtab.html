@@ -13,12 +13,20 @@
       border: 1px solid #ccc; border-radius: 8px; outline: none; }
     #addr:focus { border-color: #79a; box-shadow: 0 0 0 3px #79a3; }
     .hint { color: #aaa; font-size: 12px; }
+    #bookmarks { width: min(900px, 90vw); display: grid; gap: 10px;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); margin-top: 8px; }
+    .card { padding: 12px 14px; border: 1px solid #ddd; border-radius: 8px; background: #fff;
+      cursor: pointer; overflow: hidden; }
+    .card:hover { border-color: #79a; box-shadow: 0 1px 4px #0001; }
+    .card .title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card .url { font-size: 12px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .empty { color: #aaa; font-size: 13px; }
   </style>
 </head>
 <body>
   <h1>Tauri AI Window</h1>
   <input id="addr" type="text" placeholder="URL を入力して Enter" autocomplete="off" />
-  <div class="hint">Phase 5 でブックマークグリッドを追加予定</div>
+  <div id="bookmarks"></div>
   <script src="newtab.js"></script>
 </body>
 </html>

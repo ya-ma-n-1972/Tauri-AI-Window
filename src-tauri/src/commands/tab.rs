@@ -11,7 +11,8 @@ use tauri::{AppHandle, Emitter, EventTarget, LogicalPosition, LogicalSize, Manag
 /// 変化を AppState と Tabbar に同期させ、`window.open`/`target=_blank` を横取りする。
 /// new_browser_window と new_tab の両方から呼ぶ。
 ///
-/// Phase 1 ではダウンロード (§2.2/Phase 4) と履歴記録 (Phase 5) は未配線。
+/// `is_newtab`=true (空タブ＝newtab.html) のときは、ブックマークのスナップショットを
+/// `window.__TAW_BOOKMARKS__` として注入する (§A.1: content 用 list_bookmarks を公開しない代替)。
 pub fn build_content_webview(
     app: &AppHandle,
     bw_label: &str,
@@ -19,6 +20,7 @@ pub fn build_content_webview(
     webview_label: String,
     url: WebviewUrl,
     profile_id: &str,
+    is_newtab: bool,
 ) -> WebviewBuilder<tauri::Wry> {
     // プロファイル別の data_directory を作成。Windows の WebView2 はこの dir を
     // User Data Folder として使い、Cookie/localStorage 等が分離される。
@@ -42,12 +44,27 @@ pub fn build_content_webview(
     let app_for_new = app.clone();
     let bw_for_new = bw_label.to_string();
     let app_for_dl = app.clone();
+    let app_for_visit = app.clone();
+    let bw_for_visit = bw_label.to_string();
+    let tab_for_visit = tab_id.to_string();
 
-    let init_script = format!(
+    let mut init_script = format!(
         "{}\n;\n{}",
         crate::inject_scripts::URL_WATCH_JS,
         crate::inject_scripts::LINK_INTERCEPT_JS
     );
+
+    // §A.1 セキュア: newtab のグリッド用にブックマークのスナップショットを注入する。
+    // `tauri.localhost` ガードにより、この webview が後で remote URL へ遷移しても
+    // remote ページにはグローバルが設定されない (漏洩しない)。
+    if is_newtab {
+        let bookmarks = crate::commands::bookmark::load_items(app);
+        let bm_json = serde_json::to_string(&bookmarks).unwrap_or_else(|_| "[]".to_string());
+        init_script.push_str(&format!(
+            "\n;\nif(window.location.host==='tauri.localhost'){{window.__TAW_BOOKMARKS__={};}}",
+            bm_json
+        ));
+    }
 
     // §2.1: Tauri の D&D 横取りを止め、WebView2 のネイティブ HTML5 drop をページに通す
     // (外部ファイル → ページ内のアップロード)。Windows で HTML5 D&D を使うのに必要。
@@ -73,6 +90,23 @@ pub fn build_content_webview(
             if matches!(payload.event(), PageLoadEvent::Finished) {
                 if let Ok(u) = webview.url() {
                     update_tab_url(&app_for_load, &bw_for_load, &tab_for_load, u.as_str());
+                }
+                // 履歴記録: 現タブの url/title を AppState から取って store へ。
+                let (rec_url, rec_title) = {
+                    let state = app_for_visit.state::<AppState>();
+                    let guard = state.windows.read();
+                    guard
+                        .get(&bw_for_visit)
+                        .and_then(|bw| bw.tabs.iter().find(|t| t.id == tab_for_visit))
+                        .map(|t| (t.url.clone(), t.title.clone()))
+                        .unwrap_or_default()
+                };
+                if !rec_url.is_empty() {
+                    crate::commands::history::record_visit_internal(
+                        &app_for_visit,
+                        &rec_url,
+                        &rec_title,
+                    );
                 }
             }
             let _ = app_for_load.emit_to(
@@ -292,7 +326,8 @@ pub(crate) async fn open_tab_internal(
     let pos_y = if activate { TABBAR_HEIGHT } else { OFFSCREEN_Y };
 
     // url が空文字なら newtab.html、それ以外は外部 URL。
-    let (state_url, webview_url) = if url.is_empty() {
+    let is_newtab = url.is_empty();
+    let (state_url, webview_url) = if is_newtab {
         (String::new(), WebviewUrl::App("newtab.html".into()))
     } else {
         (
@@ -310,6 +345,7 @@ pub(crate) async fn open_tab_internal(
                 tab_webview_label.clone(),
                 webview_url,
                 &profile_id,
+                is_newtab,
             ),
             LogicalPosition::new(0.0, pos_y),
             LogicalSize::new(width, content_height),

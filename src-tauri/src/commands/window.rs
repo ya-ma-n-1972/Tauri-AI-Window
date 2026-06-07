@@ -56,6 +56,7 @@ pub(crate) async fn open_browser_window_internal(
     // 1 つ目のタブ。initial_url が None ならローカル newtab.html、Some なら外部 URL。
     let tab_id = state.alloc_tab_id();
     let tab_webview_label = format!("{}-tab-{}", bw_label, tab_id);
+    let is_newtab = initial_url.is_none();
     let (state_url, webview_url) = match &initial_url {
         Some(u) => (
             u.clone(),
@@ -73,6 +74,7 @@ pub(crate) async fn open_browser_window_internal(
                 tab_webview_label.clone(),
                 webview_url,
                 &profile_id,
+                is_newtab,
             ),
             LogicalPosition::new(0.0, TABBAR_HEIGHT),
             LogicalSize::new(INITIAL_WIDTH, INITIAL_HEIGHT - TABBAR_HEIGHT),

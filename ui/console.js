@@ -5,14 +5,31 @@ const { listen } = window.__TAURI__.event;
 
 const addrInput = document.getElementById('addr');
 
+function selectedProfile() {
+  const sel = document.getElementById('profile');
+  return sel.value || 'default';
+}
+
 async function openBlank() {
   const url = addrInput.value.trim();
   try {
-    await invoke('new_browser_window', { initialUrl: url || null });
+    await invoke('new_browser_window', { initialUrl: url || null, profileId: selectedProfile() });
     addrInput.value = '';
   } catch (err) {
     console.warn('new_browser_window', err);
   }
+}
+
+async function openUrlInWindow(url) {
+  try {
+    await invoke('new_browser_window', { initialUrl: url, profileId: selectedProfile() });
+  } catch (err) {
+    console.warn('new_browser_window', err);
+  }
+}
+
+function fmtTs(t) {
+  try { return new Date((t || 0) * 1000).toLocaleString(); } catch (_) { return ''; }
 }
 
 document.getElementById('open-blank').addEventListener('click', () => {
@@ -76,12 +93,6 @@ listen('tab://closed', refreshWindows);
 // === §2.2 ダウンロード一覧 ===
 // downloads: [{ id, name, url, status: 'downloading'|'done'|'failed'|'canceled', path }]
 const downloads = [];
-
-function dirOf(p) {
-  if (!p) return '';
-  const i = Math.max(p.lastIndexOf('\\'), p.lastIndexOf('/'));
-  return i >= 0 ? p.slice(0, i) : p;
-}
 
 function renderDownloads() {
   const ul = document.getElementById('downloads');
@@ -163,5 +174,120 @@ listen('download://canceled', e => {
   renderDownloads();
 });
 
+// === 共通: リスト項目を生成 (title 行 + sub 行 + 任意ボタン) ===
+function makeItem(title, sub, buttons, extraClass) {
+  const li = document.createElement('li');
+  if (extraClass) li.className = extraClass;
+  const span = document.createElement('span');
+  span.className = 'grow';
+  span.title = sub || '';
+  span.appendChild(document.createTextNode(title || '(no title)'));
+  if (sub) {
+    span.appendChild(document.createElement('br'));
+    const s = document.createElement('span');
+    s.className = 'sub';
+    s.textContent = sub;
+    span.appendChild(s);
+  }
+  li.appendChild(span);
+  for (const b of (buttons || [])) {
+    const btn = document.createElement('button');
+    btn.textContent = b.label;
+    btn.addEventListener('click', b.onClick);
+    li.appendChild(btn);
+  }
+  return li;
+}
+
+function fillList(ulId, items, emptyText) {
+  const ul = document.getElementById(ulId);
+  ul.innerHTML = '';
+  if (!items.length) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = emptyText;
+    ul.appendChild(li);
+    return false;
+  }
+  for (const it of items) ul.appendChild(it);
+  return true;
+}
+
+// === ブックマーク ===
+async function refreshBookmarks() {
+  let items = [];
+  try { items = await invoke('list_bookmarks'); } catch (err) { console.warn('list_bookmarks', err); }
+  fillList('bookmarks', items.map(b => makeItem(
+    b.title || b.url, b.url,
+    [
+      { label: '開く', onClick: () => openUrlInWindow(b.url) },
+      { label: '削除', onClick: async () => { try { await invoke('remove_bookmark', { url: b.url }); await refreshBookmarks(); } catch (e) { console.warn('remove_bookmark', e); } } },
+    ]
+  )), '(まだありません)');
+}
+
+// === 履歴 ===
+async function refreshHistory() {
+  let items = [];
+  try { items = await invoke('list_history'); } catch (err) { console.warn('list_history', err); }
+  fillList('history', items.slice(0, 100).map(h => makeItem(
+    h.title || h.url, `${h.url} — ${fmtTs(h.visitedAt)}`,
+    [{ label: '開く', onClick: () => openUrlInWindow(h.url) }]
+  )), '(まだありません)');
+}
+
+document.getElementById('clear-history').addEventListener('click', async () => {
+  try { await invoke('clear_history'); await refreshHistory(); } catch (e) { console.warn('clear_history', e); }
+});
+
+// === プロファイル ===
+async function refreshProfiles() {
+  let items = [];
+  try { items = await invoke('list_profiles'); } catch (err) { console.warn('list_profiles', err); }
+
+  // ドロップダウン (現在選択を保持)
+  const sel = document.getElementById('profile');
+  const prev = sel.value;
+  sel.innerHTML = '';
+  for (const p of items) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    sel.appendChild(opt);
+  }
+  if (items.some(p => p.id === prev)) sel.value = prev;
+
+  // 管理リスト
+  fillList('profile-list', items.map(p => {
+    const removable = p.id !== 'default';
+    const buttons = removable
+      ? [{ label: '削除', onClick: async () => {
+          if (!confirm('このプロファイルを削除しますか？(使用中のウィンドウがあると失敗します)')) return;
+          try { await invoke('remove_profile', { id: p.id }); await refreshProfiles(); }
+          catch (e) { alert('削除エラー: ' + e); }
+        } }]
+      : [];
+    return makeItem(p.name, `id: ${p.id}` + (removable ? '' : '（既定）'), buttons);
+  }), '(なし)');
+}
+
+async function addProfile() {
+  const input = document.getElementById('profile-name');
+  const name = input.value.trim();
+  if (!name) return;
+  try { await invoke('add_profile', { name }); input.value = ''; await refreshProfiles(); }
+  catch (e) { alert('プロファイル追加エラー: ' + e); }
+}
+document.getElementById('add-profile').addEventListener('click', addProfile);
+document.getElementById('profile-name').addEventListener('keydown', e => { if (e.key === 'Enter') addProfile(); });
+
+// ブックマークは BW/タブ操作で変わり得るので関連イベントで再取得。
+listen('bw://opened', refreshBookmarks);
+listen('tab://closed', refreshBookmarks);
+listen('tab://title-changed', refreshBookmarks);
+
 refreshWindows();
 renderDownloads();
+refreshProfiles();
+refreshBookmarks();
+refreshHistory();

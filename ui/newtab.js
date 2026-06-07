@@ -25,3 +25,37 @@ addr.addEventListener('keydown', async (e) => {
   if (!url) return;
   await navigateSelf(url);
 });
+
+// ブックマークグリッド。§A.1 セキュア: list_bookmarks は content に公開しないため、
+// 生成時に Rust が注入したスナップショット window.__TAW_BOOKMARKS__ を使う。
+function renderBookmarks() {
+  const grid = document.getElementById('bookmarks');
+  const items = Array.isArray(window.__TAW_BOOKMARKS__) ? window.__TAW_BOOKMARKS__ : [];
+  grid.innerHTML = '';
+  if (!items.length) {
+    const d = document.createElement('div');
+    d.className = 'empty';
+    d.textContent = 'ブックマークはまだありません。タブバーの ☆ で追加できます。';
+    grid.appendChild(d);
+    return;
+  }
+  for (const b of items) {
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const title = document.createElement('div');
+    title.className = 'title';
+    title.textContent = b.title || b.url;
+    card.appendChild(title);
+
+    const url = document.createElement('div');
+    url.className = 'url';
+    url.textContent = b.url;
+    card.appendChild(url);
+
+    card.addEventListener('click', () => navigateSelf(b.url));
+    grid.appendChild(card);
+  }
+}
+
+renderBookmarks();

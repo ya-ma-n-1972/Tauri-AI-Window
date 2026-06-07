@@ -27,14 +27,33 @@
 <body>
   <h1>Tauri AI Window — Console</h1>
   <div class="row">
+    <select id="profile" title="このプロファイルで新規ウィンドウを開く"></select>
     <input id="addr" type="text" placeholder="URL（空欄なら新しいタブで開く）" autocomplete="off" />
     <button id="open-url">URLで開く</button>
     <button id="open-blank">新規ウィンドウ</button>
   </div>
   <h2>ブラウザウィンドウ</h2>
   <ul id="bw-list"><li class="empty">(なし)</li></ul>
+
+  <h2>ブックマーク</h2>
+  <ul id="bookmarks"><li class="empty">(なし)</li></ul>
+
+  <div class="row" style="justify-content: space-between;">
+    <h2 style="margin:0;">履歴</h2>
+    <button id="clear-history">クリア</button>
+  </div>
+  <ul id="history"><li class="empty">(なし)</li></ul>
+
   <h2>ダウンロード</h2>
   <ul id="downloads"><li class="empty">(なし)</li></ul>
+
+  <h2>プロファイル</h2>
+  <div class="row">
+    <input id="profile-name" type="text" placeholder="新しいプロファイル名" autocomplete="off" />
+    <button id="add-profile">追加</button>
+  </div>
+  <ul id="profile-list"><li class="empty">(なし)</li></ul>
+
   <script src="console.js"></script>
 </body>
 </html>

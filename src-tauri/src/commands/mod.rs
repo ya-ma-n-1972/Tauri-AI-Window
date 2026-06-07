@@ -1,6 +1,9 @@
+pub mod bookmark;
 pub mod download;
+pub mod history;
 pub mod link;
 pub mod navigation;
+pub mod profile;
 pub mod tab;
 pub mod window;
 

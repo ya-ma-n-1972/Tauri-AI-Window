@@ -57,6 +57,15 @@ pub fn run() {
             commands::link::report_link_action,
             commands::download::open_download_file,
             commands::download::open_download_folder,
+            commands::bookmark::add_bookmark,
+            commands::bookmark::remove_bookmark,
+            commands::bookmark::list_bookmarks,
+            commands::bookmark::is_bookmarked,
+            commands::history::list_history,
+            commands::history::clear_history,
+            commands::profile::list_profiles,
+            commands::profile::add_profile,
+            commands::profile::remove_profile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -60,6 +60,40 @@ linkModeBtn.addEventListener('click', async () => {
   }
 });
 
+// === ブックマークトグル (§Phase 5) ===
+const bookmarkBtn = document.getElementById('bookmark-btn');
+let currentUrl = '';
+
+async function updateBookmarkButton() {
+  if (!currentUrl) {
+    bookmarkBtn.textContent = '☆';
+    bookmarkBtn.classList.remove('on');
+    return;
+  }
+  try {
+    const on = await invoke('is_bookmarked', { url: currentUrl });
+    bookmarkBtn.textContent = on ? '★' : '☆';
+    bookmarkBtn.classList.toggle('on', on);
+  } catch (_) {}
+}
+
+bookmarkBtn.addEventListener('click', async () => {
+  if (!currentUrl) return;
+  try {
+    const on = await invoke('is_bookmarked', { url: currentUrl });
+    if (on) {
+      await invoke('remove_bookmark', { url: currentUrl });
+    } else {
+      const tabs = await invoke('list_tabs', { bwLabel: BW });
+      const t = tabs.find(x => x.id === activeTabId);
+      await invoke('add_bookmark', { url: currentUrl, title: (t && t.title) || currentUrl });
+    }
+    await updateBookmarkButton();
+  } catch (err) {
+    console.warn('bookmark toggle', err);
+  }
+});
+
 const addrInput = document.getElementById('addr');
 addrInput.addEventListener('keydown', async (e) => {
   if (e.key === 'Enter' && activeTabId) {
@@ -134,6 +168,7 @@ async function refresh() {
   const div = document.getElementById('tabs');
   const active = tabs.find(t => t.isActive);
   activeTabId = active ? active.id : null;
+  currentUrl = active ? (active.url || '') : '';
   if (active) {
     if (document.activeElement !== addrInput) {
       addrInput.value = active.url;
@@ -144,6 +179,7 @@ async function refresh() {
   div.innerHTML = '';
   for (const t of tabs) div.appendChild(makeTabButton(t));
   updateSpinner();
+  updateBookmarkButton();
 }
 
 listen('tab://opened', e => { if (e.payload.bwLabel === BW) refresh(); });
@@ -157,8 +193,12 @@ listen('tab://switched', e => { if (e.payload.bwLabel === BW) refresh(); });
 listen('tab://title-changed', e => { if (e.payload.bwLabel === BW) refresh(); });
 listen('tab://url-changed', e => {
   if (e.payload.bwLabel !== BW) return;
-  if (e.payload.tabId === activeTabId && document.activeElement !== addrInput) {
-    addrInput.value = e.payload.url;
+  if (e.payload.tabId === activeTabId) {
+    currentUrl = e.payload.url || '';
+    updateBookmarkButton();
+    if (document.activeElement !== addrInput) {
+      addrInput.value = e.payload.url;
+    }
   }
   // SPA は load 概念がないので URL 変化時に固定 700ms スピナ。
   showSpinner(e.payload.tabId);
