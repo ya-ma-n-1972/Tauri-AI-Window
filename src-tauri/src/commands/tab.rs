@@ -48,8 +48,12 @@ pub fn build_content_webview(
         crate::inject_scripts::LINK_INTERCEPT_JS
     );
 
+    // §2.1: Tauri の D&D 横取りを止め、WebView2 のネイティブ HTML5 drop をページに通す
+    // (外部ファイル → ページ内のアップロード)。Windows で HTML5 D&D を使うのに必要。
+    // 副作用: この webview で Tauri の onDragDropEvent は発火しなくなるが、content では未使用。
     let mut builder = WebviewBuilder::new(webview_label, url)
-        .initialization_script_for_all_frames(init_script);
+        .initialization_script_for_all_frames(init_script)
+        .disable_drag_drop_handler();
     if let Some(d) = data_dir {
         builder = builder.data_directory(d);
     }
