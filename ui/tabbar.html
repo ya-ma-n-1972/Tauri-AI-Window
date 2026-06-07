@@ -1,11 +1,46 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>tabbar</title>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; padding:0; height:72px; background:#222; display:flex; flex-direction:column; font-family:sans-serif; overflow:hidden; }
+
+  #navbar { height:36px; display:flex; align-items:center; gap:4px; padding:0 6px; background:#181818; border-bottom: 1px solid #000; }
+  #navbar button { padding:4px 10px; font-size:14px; background:#333; color:#ccc; border:1px solid #555; border-radius:4px; cursor:pointer; }
+  #navbar button:hover { background:#444; }
+  #addr { flex:1; min-width:0; padding:4px 8px; font-size:13px; background:#fff; color:#222; border:1px solid #555; border-radius:4px; }
+  #spinner { width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; color:transparent; font-size:18px; line-height:1; flex-shrink:0; }
+  #spinner.active { color:#7ad; }
+  #spinner.active::before { content:'⟳'; display:inline-block; animation: taw-spin 0.8s linear infinite; }
+  @keyframes taw-spin { to { transform: rotate(360deg); } }
+
+  #tabs-row { height:36px; display:flex; align-items:center; gap:2px; padding:0 4px; overflow:hidden; }
+  #tabs { display:flex; flex-direction:row; gap:2px; flex:1; min-width:0; overflow:hidden; }
+  /* §2.3: タブは flex コンテナ。タイトルは可変・省略、× は固定幅で常に見える。 */
+  #tabs button { display:flex; align-items:center; gap:6px; padding:6px 8px 6px 12px; font-size:13px;
+    background:#333; color:#aaa; border:1px solid #444; border-bottom:none; border-radius:4px 4px 0 0;
+    cursor:pointer; max-width:200px; min-width:0; overflow:hidden; }
+  #tabs button.active { background:#111; color:#eee; }
+  #tabs button .label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #tabs button .close { flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
+    width:16px; height:16px; border-radius:3px; line-height:1; }
+  #tabs button .close:hover { background:#555; color:#fff; }
+  #add { background:#444; color:#fff; flex-shrink:0; padding:6px 12px; border:1px solid #555; border-radius:4px; cursor:pointer; }
+</style>
 </head>
 <body>
-  <!-- Phase 1 で実装 -->
-  <script src="tabbar.js"></script>
+<div id="navbar">
+  <button id="back" title="戻る">←</button>
+  <button id="forward" title="進む">→</button>
+  <button id="reload" title="リロード">⟳</button>
+  <input id="addr" type="text" placeholder="URL" autocomplete="off">
+  <span id="spinner"></span>
+</div>
+<div id="tabs-row">
+  <div id="tabs"></div>
+  <button id="add" title="新しいタブ">+</button>
+</div>
+<script src="tabbar.js"></script>
 </body>
 </html>

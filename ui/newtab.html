@@ -3,9 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <title>新しいタブ</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-family: system-ui, sans-serif; background: #fafafa; color: #333; gap: 16px; }
+    h1 { font-size: 18px; font-weight: 500; color: #888; margin: 0; }
+    #addr { width: min(560px, 80vw); padding: 12px 16px; font-size: 15px;
+      border: 1px solid #ccc; border-radius: 8px; outline: none; }
+    #addr:focus { border-color: #79a; box-shadow: 0 0 0 3px #79a3; }
+    .hint { color: #aaa; font-size: 12px; }
+  </style>
 </head>
 <body>
-  <!-- Phase 1/5 で実装 -->
+  <h1>Tauri AI Window</h1>
+  <input id="addr" type="text" placeholder="URL を入力して Enter" autocomplete="off" />
+  <div class="hint">Phase 5 でブックマークグリッドを追加予定</div>
   <script src="newtab.js"></script>
 </body>
 </html>
