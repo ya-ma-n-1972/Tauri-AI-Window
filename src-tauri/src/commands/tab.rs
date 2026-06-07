@@ -179,6 +179,14 @@ pub fn build_content_webview(
         })
 }
 
+/// 2つの URL が同一オリジン (scheme+host+port) か。どちらか parse 不能なら false。
+fn same_origin(a: &str, b: &str) -> bool {
+    match (tauri::Url::parse(a), tauri::Url::parse(b)) {
+        (Ok(x), Ok(y)) => x.origin() == y.origin(),
+        _ => false,
+    }
+}
+
 fn update_tab_url(app: &AppHandle, bw_label: &str, tab_id: &str, new_url: &str) {
     // Windows 専用: ローカル UI (newtab.html 等) の `http://tauri.localhost/...` を AppState に
     // 入れない (URL バーに表示させない、二重保険)。
@@ -246,6 +254,24 @@ pub fn report_url_change(
         .next()
         .ok_or_else(|| format!("invalid content label: {}", label))?
         .to_string();
+
+    // §A.1 セキュリティ: report_url_change は SPA のソフト遷移 (pushState/hashchange) 通知専用で、
+    // pushState はブラウザ仕様上 同一オリジンに限られる。よって申告 URL のオリジンが現タブの
+    // 信頼済み URL (on_navigation/on_page_load が webview.url() から設定) と異なる場合は、
+    // remote ページによるアドレスバー偽装 (フィッシング) とみなして無視する。
+    let trusted = {
+        let state = app.state::<AppState>();
+        let guard = state.windows.read();
+        guard
+            .get(&bw_label)
+            .and_then(|bw| bw.tabs.iter().find(|t| t.id == tab_id))
+            .map(|t| t.url.clone())
+            .unwrap_or_default()
+    };
+    if !trusted.is_empty() && !same_origin(&trusted, &url) {
+        return Ok(());
+    }
+
     update_tab_url(&app, &bw_label, &tab_id, &url);
     if let Some(t) = title {
         if !t.is_empty() {

@@ -15,6 +15,16 @@ pub async fn report_link_action(
 ) -> Result<(), String> {
     assert_caller(&webview, &["bw_*-tab-*"])?;
 
+    // §A.1 セキュリティ: content (remote ページ含む) からの呼出なので、開ける URL を
+    // http/https に限定する。file:// (ローカルファイル表示)・javascript:・data: 等で
+    // タブ/ウィンドウ生成や自タブ遷移を誘発されるのを遮断する。
+    {
+        let parsed = tauri::Url::parse(&url).map_err(|_| format!("invalid URL: {}", url))?;
+        if !matches!(parsed.scheme(), "http" | "https") {
+            return Err(format!("scheme not allowed: {}", parsed.scheme()));
+        }
+    }
+
     let caller_label = webview.label().to_string();
     let mut parts = caller_label.rsplitn(2, "-tab-");
     parts
