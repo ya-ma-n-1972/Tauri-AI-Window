@@ -24,13 +24,15 @@
   }
 
   // Ctrl/Cmd+Click, Shift+Ctrl+Click, target=_blank の捕捉。
+  // §2.5 優先順位: 修飾キーは明示操作 (優先順位1) なので tab/window を直接指定。
+  // 修飾キー無しの target=_blank は 'auto' を送り、Rust 側で BW スイッチに従わせる (優先順位3)。
   document.addEventListener('click', (e) => {
     const a = findAnchor(e.target);
     if (!a) return;
     let mode = null;
     if (e.shiftKey && (e.ctrlKey || e.metaKey)) mode = 'window';
     else if (e.ctrlKey || e.metaKey) mode = 'tab';
-    else if (a.target === '_blank') mode = 'tab';
+    else if (a.target === '_blank') mode = 'auto';
     if (!mode) return;
     e.preventDefault();
     e.stopPropagation();

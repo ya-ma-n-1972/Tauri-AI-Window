@@ -1,5 +1,7 @@
 use crate::commands::assert_caller;
-use crate::state::{AppState, Tab, TabSummary, DEFAULT_PROFILE_ID, OFFSCREEN_Y, TABBAR_HEIGHT};
+use crate::state::{
+    AppState, LinkOpenMode, Tab, TabSummary, DEFAULT_PROFILE_ID, OFFSCREEN_Y, TABBAR_HEIGHT,
+};
 use serde_json::json;
 use tauri::webview::{PageLoadEvent, WebviewBuilder};
 use tauri::{AppHandle, Emitter, EventTarget, LogicalPosition, LogicalSize, Manager, WebviewUrl};
@@ -83,28 +85,35 @@ pub fn build_content_webview(
             );
         })
         .on_new_window(move |url, features| {
-            // window.open(url, target, features) を捕捉。features.size()/position() が指定されて
-            // いれば新規ウィンドウ、無ければ新規タブ扱い。Tauri 自動生成は Deny し、自前で開く。
-            let mode = if features.size().is_some() || features.position().is_some() {
-                "window"
-            } else {
-                "tab"
-            };
+            // window.open(url, target, features) を捕捉。Tauri 自動生成は Deny し、自前で開く。
+            // §2.5 優先順位: (2) popup features 明示 → 新規ウィンドウ (OAuth/認証小窓を壊さない)、
+            //               (3) 無ければ BW のリンク開きモード (スイッチ) に従う。
+            // ※ 修飾キー (優先順位1) は window.open には乗らないため、ここでは扱わない。
+            let has_popup_features = features.size().is_some() || features.position().is_some();
             let app_clone = app_for_new.clone();
             let bw_clone = bw_for_new.clone();
-            let bw_for_profile = bw_for_new.clone();
+            let bw_for_lookup = bw_for_new.clone();
             let url_string = url.to_string();
-            let mode_owned = mode.to_string();
             // tauri::async_runtime::spawn 経由で別スレッド (Tauri 内部 tokio) に乗せる。
             // on_new_window 同期コンテキストから直接 add_child を呼ぶと Windows でデッドロック (§1-3)。
             tauri::async_runtime::spawn(async move {
-                let r = if mode_owned == "window" {
+                let to_window = if has_popup_features {
+                    true
+                } else {
+                    let state = app_clone.state::<AppState>();
+                    let guard = state.windows.read();
+                    guard
+                        .get(&bw_for_lookup)
+                        .map(|bw| bw.link_open_mode == LinkOpenMode::Window)
+                        .unwrap_or(false)
+                };
+                let r = if to_window {
                     // 親 BW の profile_id を継承
                     let parent_profile = {
                         let state = app_clone.state::<AppState>();
                         let guard = state.windows.read();
                         guard
-                            .get(&bw_for_profile)
+                            .get(&bw_for_lookup)
                             .map(|bw| bw.profile_id.clone())
                             .unwrap_or_else(|| DEFAULT_PROFILE_ID.to_string())
                     };

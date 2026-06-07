@@ -43,6 +43,8 @@ pub fn run() {
             commands::window::close_browser_window,
             commands::window::focus_browser_window,
             commands::window::list_browser_windows,
+            commands::window::set_link_open_mode,
+            commands::window::get_link_open_mode,
             commands::tab::new_tab,
             commands::tab::close_tab,
             commands::tab::switch_tab,

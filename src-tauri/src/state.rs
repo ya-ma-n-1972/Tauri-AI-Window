@@ -11,6 +11,14 @@ pub const OFFSCREEN_Y: f64 = -100000.0;
 // Phase 1 では profile 管理 UI は未実装。全 BW はこの既定プロファイルを使う (Phase 5 で UI 追加)。
 pub const DEFAULT_PROFILE_ID: &str = "default";
 
+/// §2.5: リンク/`window.open` の「明示指定が無いときの既定の開き方」。BW ごとに保持し、
+/// 永続化はしない (ウィンドウを閉じたら破棄)。既定は Tab。
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum LinkOpenMode {
+    Tab,
+    Window,
+}
+
 pub struct AppState {
     pub next_bw_id: AtomicU64,
     pub next_tab_id: AtomicU64,
@@ -43,6 +51,8 @@ pub struct BrowserWindow {
     pub tabs: Vec<Tab>,
     pub active_tab_id: Option<String>,
     pub profile_id: String,
+    /// §2.5: 明示指定が無いときの既定の開き方 (per-window、非永続)。
+    pub link_open_mode: LinkOpenMode,
 }
 
 pub struct Tab {

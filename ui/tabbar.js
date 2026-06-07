@@ -30,6 +30,36 @@ document.getElementById('reload').addEventListener('click', () => {
   if (activeTabId) invoke('reload_tab', { bwLabel: BW, tabId: activeTabId }).catch(e => console.warn('reload', e));
 });
 
+// §2.5: per-window リンク開きモードのトグル (非永続)。起動時に Rust の状態で初期化。
+let linkMode = 'tab';
+const linkModeBtn = document.getElementById('linkmode');
+
+function renderLinkMode() {
+  linkModeBtn.textContent = linkMode === 'window' ? 'リンク: ウィンドウ' : 'リンク: タブ';
+  linkModeBtn.classList.toggle('window', linkMode === 'window');
+}
+
+async function initLinkMode() {
+  try {
+    linkMode = await invoke('get_link_open_mode', { bwLabel: BW });
+  } catch (err) {
+    console.warn('get_link_open_mode', err);
+    linkMode = 'tab';
+  }
+  renderLinkMode();
+}
+
+linkModeBtn.addEventListener('click', async () => {
+  const next = linkMode === 'window' ? 'tab' : 'window';
+  try {
+    await invoke('set_link_open_mode', { bwLabel: BW, mode: next });
+    linkMode = next;
+    renderLinkMode();
+  } catch (err) {
+    console.warn('set_link_open_mode', err);
+  }
+});
+
 const addrInput = document.getElementById('addr');
 addrInput.addEventListener('keydown', async (e) => {
   if (e.key === 'Enter' && activeTabId) {
@@ -145,3 +175,4 @@ listen('tab://load-finished', e => {
 });
 
 refresh();
+initLinkMode();

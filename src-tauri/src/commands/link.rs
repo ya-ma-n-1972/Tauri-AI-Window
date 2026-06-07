@@ -1,5 +1,5 @@
 use crate::commands::assert_caller;
-use crate::state::{AppState, DEFAULT_PROFILE_ID};
+use crate::state::{AppState, LinkOpenMode, DEFAULT_PROFILE_ID};
 use tauri::{AppHandle, Manager};
 
 /// content webview から呼ばれる「リンク開き分け」通知。注入スクリプト
@@ -25,7 +25,26 @@ pub async fn report_link_action(
         .ok_or_else(|| format!("invalid content label: {}", caller_label))?
         .to_string();
 
-    match mode.as_str() {
+    // §2.5: 'auto' (link_intercept.js が修飾キー無しの target=_blank 等で送る) は、
+    // BW のリンク開きモード (スイッチ) を参照して tab/window に解決する (優先順位3)。
+    // 'tab'/'window' は明示操作 (優先順位1) なのでそのまま通す。
+    let effective_mode = if mode == "auto" {
+        let state = app.state::<AppState>();
+        let guard = state.windows.read();
+        let to_window = guard
+            .get(&bw_label)
+            .map(|bw| bw.link_open_mode == LinkOpenMode::Window)
+            .unwrap_or(false);
+        if to_window {
+            "window"
+        } else {
+            "tab"
+        }
+    } else {
+        mode.as_str()
+    };
+
+    match effective_mode {
         "tab" => {
             crate::commands::tab::open_tab_internal(&app, bw_label, url, true).await?;
             Ok(())

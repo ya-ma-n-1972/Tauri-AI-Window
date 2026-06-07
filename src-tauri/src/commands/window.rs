@@ -1,8 +1,8 @@
 use crate::commands::assert_caller;
 use crate::commands::tab::build_content_webview;
 use crate::state::{
-    AppState, BrowserWindow, BrowserWindowSummary, Tab, DEFAULT_PROFILE_ID, OFFSCREEN_Y,
-    TABBAR_HEIGHT,
+    AppState, BrowserWindow, BrowserWindowSummary, LinkOpenMode, Tab, DEFAULT_PROFILE_ID,
+    OFFSCREEN_Y, TABBAR_HEIGHT,
 };
 use serde_json::json;
 use tauri::webview::WebviewBuilder;
@@ -95,6 +95,7 @@ pub(crate) async fn open_browser_window_internal(
                 }],
                 active_tab_id: Some(tab_id.clone()),
                 profile_id: profile_id.clone(),
+                link_open_mode: LinkOpenMode::Tab,
             },
         );
     }
@@ -246,4 +247,48 @@ pub fn list_browser_windows(
             profile_id: bw.profile_id.clone(),
         })
         .collect())
+}
+
+/// §2.5: BW のリンク開きモード (既定の開き方) を設定する。tabbar のトグルから呼ばれる。
+/// 永続化はしない (AppState のみ)。
+#[tauri::command]
+pub fn set_link_open_mode(
+    webview: tauri::Webview,
+    state: tauri::State<'_, AppState>,
+    bw_label: String,
+    mode: String,
+) -> Result<(), String> {
+    assert_caller(&webview, &["console", "bw_*-tabbar"])?;
+    let m = match mode.as_str() {
+        "tab" => LinkOpenMode::Tab,
+        "window" => LinkOpenMode::Window,
+        _ => return Err(format!("invalid mode: {}", mode)),
+    };
+    let mut windows = state.windows.write();
+    let bw = windows
+        .get_mut(&bw_label)
+        .ok_or_else(|| format!("BW not found: {}", bw_label))?;
+    bw.link_open_mode = m;
+    Ok(())
+}
+
+/// §2.5: BW のリンク開きモードを取得する。tabbar 起動時の初期表示に使う。
+/// BW 未登録時 (tabbar webview が windows.insert より先に起動した場合) は既定の "tab" を返す。
+#[tauri::command]
+pub fn get_link_open_mode(
+    webview: tauri::Webview,
+    state: tauri::State<'_, AppState>,
+    bw_label: String,
+) -> Result<String, String> {
+    assert_caller(&webview, &["console", "bw_*-tabbar"])?;
+    let guard = state.windows.read();
+    let mode = guard
+        .get(&bw_label)
+        .map(|bw| bw.link_open_mode)
+        .unwrap_or(LinkOpenMode::Tab);
+    Ok(match mode {
+        LinkOpenMode::Tab => "tab",
+        LinkOpenMode::Window => "window",
+    }
+    .to_string())
 }
