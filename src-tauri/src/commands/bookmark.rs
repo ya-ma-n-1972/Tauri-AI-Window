@@ -2,7 +2,7 @@ use crate::commands::assert_caller;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter, EventTarget};
 use tauri_plugin_store::StoreExt;
 
 const BOOKMARKS_FILE: &str = "bookmarks.json";
@@ -37,6 +37,8 @@ pub fn load_items(app: &AppHandle) -> Vec<BookmarkItem> {
 fn save_items(app: &AppHandle, items: &[BookmarkItem]) -> Result<(), String> {
     let store = app.store(BOOKMARKS_FILE).map_err(|e| e.to_string())?;
     store.set(BOOKMARKS_KEY, json!(items));
+    // console の一覧を再取得させる。
+    let _ = app.emit_to(EventTarget::webview("console"), "bookmark://changed", ());
     Ok(())
 }
 

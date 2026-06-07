@@ -2,7 +2,7 @@ use crate::commands::assert_caller;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter, EventTarget};
 use tauri_plugin_store::StoreExt;
 
 const HISTORY_FILE: &str = "history.json";
@@ -38,6 +38,8 @@ fn save_items(app: &AppHandle, items: &[HistoryItem]) {
     if let Ok(store) = app.store(HISTORY_FILE) {
         store.set(HISTORY_KEY, json!(items));
     }
+    // console の履歴一覧を再取得させる。
+    let _ = app.emit_to(EventTarget::webview("console"), "history://changed", ());
 }
 
 /// content webview の遷移完了時に Rust 内部で呼ぶ。コマンドではない。

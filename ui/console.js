@@ -281,10 +281,9 @@ async function addProfile() {
 document.getElementById('add-profile').addEventListener('click', addProfile);
 document.getElementById('profile-name').addEventListener('keydown', e => { if (e.key === 'Enter') addProfile(); });
 
-// ブックマークは BW/タブ操作で変わり得るので関連イベントで再取得。
-listen('bw://opened', refreshBookmarks);
-listen('tab://closed', refreshBookmarks);
-listen('tab://title-changed', refreshBookmarks);
+// Rust 側の変更通知で再取得（tabbar ☆ での追加・ページ閲覧での履歴記録を即反映）。
+listen('bookmark://changed', refreshBookmarks);
+listen('history://changed', refreshHistory);
 
 refreshWindows();
 renderDownloads();
