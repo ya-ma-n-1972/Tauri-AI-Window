@@ -41,6 +41,25 @@ addrInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') openBlank();
 });
 
+// AI サイトの直リンボタン (選択プロファイルで新規ウィンドウ)。サイトを増減するにはこの配列を編集。
+const AI_SITES = [
+  { label: 'ChatGPT', url: 'https://chat.openai.com/' },
+  { label: 'Claude', url: 'https://claude.ai/' },
+  { label: 'Gemini', url: 'https://gemini.google.com/' },
+];
+
+function renderAiSites() {
+  const row = document.getElementById('ai-sites');
+  for (const s of AI_SITES) {
+    const btn = document.createElement('button');
+    btn.textContent = s.label;
+    btn.dataset.url = s.url;
+    btn.addEventListener('click', () => openUrlInWindow(btn.dataset.url));
+    row.appendChild(btn);
+  }
+}
+renderAiSites();
+
 async function refreshWindows() {
   let list = [];
   try {

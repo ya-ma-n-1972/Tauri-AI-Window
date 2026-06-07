@@ -27,10 +27,17 @@
 <body>
   <h1>Tauri AI Window — Console</h1>
   <div class="row">
-    <select id="profile" title="このプロファイルで新規ウィンドウを開く"></select>
-    <input id="addr" type="text" placeholder="URL（空欄なら新しいタブで開く）" autocomplete="off" />
+    <label for="profile">プロファイル:</label>
+    <select id="profile" title="選択したプロファイルで開きます"></select>
+    <span class="muted">選択したプロファイルで下のサイトを開きます</span>
+  </div>
+  <div class="row" id="ai-sites">
+    <button id="open-blank">新規ブランクウィンドウ</button>
+    <!-- AI サイトの直リンボタンは console.js の AI_SITES から生成 -->
+  </div>
+  <div class="row">
+    <input id="addr" type="text" placeholder="URL を入力して新規ウィンドウ" autocomplete="off" />
     <button id="open-url">URLで開く</button>
-    <button id="open-blank">新規ウィンドウ</button>
   </div>
   <h2>ブラウザウィンドウ</h2>
   <ul id="bw-list"><li class="empty">(なし)</li></ul>
