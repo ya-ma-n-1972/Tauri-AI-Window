@@ -1,3 +1,4 @@
+pub mod download;
 pub mod link;
 pub mod navigation;
 pub mod tab;

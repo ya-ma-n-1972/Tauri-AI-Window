@@ -41,6 +41,7 @@ pub fn build_content_webview(
     let tab_for_title = tab_id.to_string();
     let app_for_new = app.clone();
     let bw_for_new = bw_label.to_string();
+    let app_for_dl = app.clone();
 
     let init_script = format!(
         "{}\n;\n{}",
@@ -138,6 +139,9 @@ pub fn build_content_webview(
                 }
             });
             tauri::webview::NewWindowResponse::Deny
+        })
+        .on_download(move |_w, event| {
+            crate::commands::download::handle_download_event(&app_for_dl, event)
         })
 }
 

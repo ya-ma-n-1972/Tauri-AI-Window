@@ -55,6 +55,8 @@ pub fn run() {
             commands::navigation::go_back,
             commands::navigation::go_forward,
             commands::link::report_link_action,
+            commands::download::open_download_file,
+            commands::download::open_download_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

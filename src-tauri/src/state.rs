@@ -1,6 +1,7 @@
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 // 上段 navbar (戻る/進む/リロード/アドレスバー) 36px + 下段タブ列 36px の 2 段構成。
@@ -19,10 +20,29 @@ pub enum LinkOpenMode {
     Window,
 }
 
+/// §2.2: 進行中/確定待ちのダウンロード1件。`Requested` でステージングへ流しつつ
+/// 非同期の保存ダイアログを出し、ダイアログ結果(`target`/`decided`)と DL 完了(`finished`)が
+/// 揃ったところで移動 or 破棄を一度だけ実行する (`finalized`)。
+pub struct DownloadEntry {
+    pub id: u64,
+    pub staging: PathBuf,
+    /// 保存ダイアログで選ばれた最終パス。None かつ decided なら「キャンセル」。
+    pub target: Option<PathBuf>,
+    /// 保存ダイアログが返ったか。
+    pub decided: bool,
+    /// DL 完了状態。None=進行中、Some(success)。
+    pub finished: Option<bool>,
+    /// 移動/削除を一度だけ実行する保証フラグ。
+    pub finalized: bool,
+}
+
 pub struct AppState {
     pub next_bw_id: AtomicU64,
     pub next_tab_id: AtomicU64,
     pub windows: RwLock<HashMap<String, BrowserWindow>>,
+    // §2.2 ダウンロード追跡。キーはステージング(一時保存)絶対パス文字列。
+    pub next_download_id: AtomicU64,
+    pub downloads: Mutex<HashMap<String, DownloadEntry>>,
 }
 
 impl AppState {
@@ -31,6 +51,8 @@ impl AppState {
             next_bw_id: AtomicU64::new(0),
             next_tab_id: AtomicU64::new(0),
             windows: RwLock::new(HashMap::new()),
+            next_download_id: AtomicU64::new(0),
+            downloads: Mutex::new(HashMap::new()),
         }
     }
 

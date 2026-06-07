@@ -19,6 +19,9 @@
     li .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     li .sub { color: #888; font-size: 12px; }
     li.empty { color: #888; justify-content: center; }
+    li.dl-failed .grow { color: #c44; }
+    li.dl-canceled .grow { color: #888; text-decoration: line-through; }
+    .status { flex-shrink: 0; font-size: 12px; color: #888; }
   </style>
 </head>
 <body>
@@ -30,6 +33,8 @@
   </div>
   <h2>ブラウザウィンドウ</h2>
   <ul id="bw-list"><li class="empty">(なし)</li></ul>
+  <h2>ダウンロード</h2>
+  <ul id="downloads"><li class="empty">(なし)</li></ul>
   <script src="console.js"></script>
 </body>
 </html>
