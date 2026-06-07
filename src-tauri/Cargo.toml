@@ -1,0 +1,31 @@
+[package]
+name = "app"
+version = "0.1.0"
+description = "Tauri AI Window v2.0 - Multi-tab AI chat browser"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2021"
+default-run = "app"
+rust-version = "1.77.2"
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+default = []
+devtools = ["tauri/devtools"]
+
+[build-dependencies]
+tauri-build = { version = "2.5.6", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "2.10.3", features = ["unstable"] }
+parking_lot = "0.12"
+tauri-plugin-store = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+dirs = "5"

@@ -1,0 +1,8 @@
+# Rust / Tauri
+/src-tauri/target
+/src-tauri/gen/schemas
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp

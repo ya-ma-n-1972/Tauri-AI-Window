@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "console-cap",
+  "description": "Console window full access",
+  "windows": ["console"],
+  "permissions": ["core:default"]
+}

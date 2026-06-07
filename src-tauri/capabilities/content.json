@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "content-cap",
+  "description": "Content webviews (external pages). No core:default to avoid leaking Tauri APIs to remote pages.",
+  "webviews": ["bw_*-tab-*"],
+  "permissions": []
+}
