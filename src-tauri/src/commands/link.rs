@@ -12,28 +12,33 @@ pub async fn report_link_action(
     app: AppHandle,
     url: String,
     mode: String,
+    nonce: String,
 ) -> Result<(), String> {
     assert_caller(&webview, &["bw_*-tab-*"])?;
 
     // §A.1 セキュリティ: content (remote ページ含む) からの呼出なので、開ける URL を
     // http/https に限定する。file:// (ローカルファイル表示)・javascript:・data: 等で
     // タブ/ウィンドウ生成や自タブ遷移を誘発されるのを遮断する。
-    {
-        let parsed = tauri::Url::parse(&url).map_err(|_| format!("invalid URL: {}", url))?;
-        if !matches!(parsed.scheme(), "http" | "https") {
-            return Err(format!("scheme not allowed: {}", parsed.scheme()));
-        }
+    if !crate::commands::is_http_url(&url) {
+        return Err(format!("scheme not allowed: {}", url));
     }
 
     let caller_label = webview.label().to_string();
     let mut parts = caller_label.rsplitn(2, "-tab-");
-    parts
+    let tab_id = parts
         .next()
-        .ok_or_else(|| format!("invalid content label: {}", caller_label))?;
+        .ok_or_else(|| format!("invalid content label: {}", caller_label))?
+        .to_string();
     let bw_label = parts
         .next()
         .ok_or_else(|| format!("invalid content label: {}", caller_label))?
         .to_string();
+
+    // §A.1: 注入スクリプト (link_intercept.js / newtab.js) だけが知る nonce を要求し、
+    // 外部ページが直接 invoke('report_link_action', ...) しても弾く。
+    if !crate::commands::tab::verify_nonce(&app, &bw_label, &tab_id, &nonce) {
+        return Err("invalid nonce".into());
+    }
 
     // §2.5: 'auto' (link_intercept.js が修飾キー無しの target=_blank 等で送る) は、
     // BW のリンク開きモード (スイッチ) を参照して tab/window に解決する (優先順位3)。

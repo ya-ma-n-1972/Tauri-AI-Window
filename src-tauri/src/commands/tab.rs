@@ -13,6 +13,8 @@ use tauri::{AppHandle, Emitter, EventTarget, LogicalPosition, LogicalSize, Manag
 ///
 /// `is_newtab`=true (空タブ＝newtab.html) のときは、ブックマークのスナップショットを
 /// `window.__TAW_BOOKMARKS__` として注入する (§A.1: content 用 list_bookmarks を公開しない代替)。
+// content webview 1枚を組み立てる集約点。引数は多いが各々独立した設定値なので構造体化しない。
+#[allow(clippy::too_many_arguments)]
 pub fn build_content_webview(
     app: &AppHandle,
     bw_label: &str,
@@ -21,6 +23,7 @@ pub fn build_content_webview(
     url: WebviewUrl,
     profile_id: &str,
     is_newtab: bool,
+    nonce: &str,
 ) -> WebviewBuilder<tauri::Wry> {
     // プロファイル別の data_directory を作成。Windows の WebView2 はこの dir を
     // User Data Folder として使い、Cookie/localStorage 等が分離される。
@@ -48,21 +51,23 @@ pub fn build_content_webview(
     let bw_for_visit = bw_label.to_string();
     let tab_for_visit = tab_id.to_string();
 
-    let mut init_script = format!(
-        "{}\n;\n{}",
-        crate::inject_scripts::URL_WATCH_JS,
-        crate::inject_scripts::LINK_INTERCEPT_JS
-    );
+    // §A.1: per-webview nonce を注入スクリプトのクロージャ引数として埋め込む。
+    // top-level 変数にせずクロージャに隠すことで、後から走るページ JS から読めないようにする。
+    // content 許可コマンド (report_link_action / report_url_change) はこの nonce を要求する。
+    let url_watch = crate::inject_scripts::URL_WATCH_JS.replace("__TAW_NONCE__", nonce);
+    let link_intercept = crate::inject_scripts::LINK_INTERCEPT_JS.replace("__TAW_NONCE__", nonce);
+    let mut init_script = format!("{}\n;\n{}", url_watch, link_intercept);
 
-    // §A.1 セキュア: newtab のグリッド用にブックマークのスナップショットを注入する。
-    // `tauri.localhost` ガードにより、この webview が後で remote URL へ遷移しても
+    // §A.1 セキュア: newtab はローカルページなので、グリッド用ブックマークと nonce を
+    // `tauri.localhost` ガード付きで公開する。この webview が後で remote へ遷移しても
     // remote ページにはグローバルが設定されない (漏洩しない)。
     if is_newtab {
         let bookmarks = crate::commands::bookmark::load_items(app);
         let bm_json = serde_json::to_string(&bookmarks).unwrap_or_else(|_| "[]".to_string());
+        let nonce_lit = serde_json::to_string(nonce).unwrap_or_else(|_| "\"\"".to_string());
         init_script.push_str(&format!(
-            "\n;\nif(window.location.host==='tauri.localhost'){{window.__TAW_BOOKMARKS__={};}}",
-            bm_json
+            "\n;\nif(window.location.host==='tauri.localhost'){{window.__TAW_BOOKMARKS__={};window.__TAW_NONCE__={};}}",
+            bm_json, nonce_lit
         ));
     }
 
@@ -179,6 +184,20 @@ pub fn build_content_webview(
         })
 }
 
+/// §A.1: 呼出元 content webview の Tab.nonce と一致するか検証する。
+pub(crate) fn verify_nonce(app: &AppHandle, bw_label: &str, tab_id: &str, nonce: &str) -> bool {
+    if nonce.is_empty() {
+        return false;
+    }
+    let state = app.state::<AppState>();
+    let guard = state.windows.read();
+    guard
+        .get(bw_label)
+        .and_then(|bw| bw.tabs.iter().find(|t| t.id == tab_id))
+        .map(|t| t.nonce == nonce)
+        .unwrap_or(false)
+}
+
 /// 2つの URL が同一オリジン (scheme+host+port) か。どちらか parse 不能なら false。
 fn same_origin(a: &str, b: &str) -> bool {
     match (tauri::Url::parse(a), tauri::Url::parse(b)) {
@@ -242,6 +261,7 @@ pub fn report_url_change(
     app: AppHandle,
     url: String,
     title: Option<String>,
+    nonce: String,
 ) -> Result<(), String> {
     assert_caller(&webview, &["bw_*-tab-*"])?;
     let label = webview.label().to_string();
@@ -254,6 +274,11 @@ pub fn report_url_change(
         .next()
         .ok_or_else(|| format!("invalid content label: {}", label))?
         .to_string();
+
+    // §A.1: 注入スクリプトだけが知る nonce を要求し、外部ページの直接 invoke を弾く。
+    if !verify_nonce(&app, &bw_label, &tab_id, &nonce) {
+        return Err("invalid nonce".into());
+    }
 
     // §A.1 セキュリティ: report_url_change は SPA のソフト遷移 (pushState/hashchange) 通知専用で、
     // pushState はブラウザ仕様上 同一オリジンに限られる。よって申告 URL のオリジンが現タブの
@@ -306,6 +331,11 @@ pub(crate) async fn open_tab_internal(
     url: String,
     activate: bool,
 ) -> Result<String, String> {
+    // §A.1: 外部ページ由来 URL もこの経路 (on_new_window) を通るため、http/https に限定。
+    if !url.is_empty() && !crate::commands::is_http_url(&url) {
+        return Err(format!("scheme not allowed: {}", url));
+    }
+
     let state = app.state::<AppState>();
 
     // 親 BW の profile_id を取得 (継承)
@@ -353,6 +383,7 @@ pub(crate) async fn open_tab_internal(
 
     // url が空文字なら newtab.html、それ以外は外部 URL。
     let is_newtab = url.is_empty();
+    let nonce = crate::commands::gen_nonce(&tab_webview_label);
     let (state_url, webview_url) = if is_newtab {
         (String::new(), WebviewUrl::App("newtab.html".into()))
     } else {
@@ -372,6 +403,7 @@ pub(crate) async fn open_tab_internal(
                 webview_url,
                 &profile_id,
                 is_newtab,
+                &nonce,
             ),
             LogicalPosition::new(0.0, pos_y),
             LogicalSize::new(width, content_height),
@@ -386,6 +418,7 @@ pub(crate) async fn open_tab_internal(
                 webview_label: tab_webview_label.clone(),
                 title: String::new(),
                 url: state_url,
+                nonce: nonce.clone(),
             });
             if activate {
                 bw.active_tab_id = Some(tab_id.clone());

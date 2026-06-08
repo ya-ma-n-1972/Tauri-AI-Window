@@ -1,16 +1,18 @@
 // content webview に注入。リンククリックの修飾キー判定 + 中ボタン + target="_blank" を捕捉し、
 // `report_link_action` に通知して Rust 側で新規タブ/新規ウィンドウを開く。
 //
-// §2.4: 右クリックは WebView2 のネイティブ標準メニューに委ねるため preventDefault しない
-// (コピー/貼付/切取/全選択/画像の保存 等を残す)。母体の contextmenu ハンドラは廃止した。
-(function () {
+// §2.4: 右クリックは WebView2 のネイティブ標準メニューに委ねるため preventDefault しない。
+// §A.1: NONCE はクロージャ引数として渡され (top-level に置かない)、ページ JS から読めない。
+//       report_link_action はこの nonce を要求するので外部ページの直接 invoke は弾かれる。
+//       さらに e.isTrusted を要求し、ページが合成イベントで本スクリプトを悪用するのを防ぐ。
+(function (NONCE) {
   if (window.__taw_link_intercept__) return;
   window.__taw_link_intercept__ = true;
 
   function report(url, mode) {
     if (!url) return;
     try {
-      window.__TAURI_INTERNALS__.invoke('report_link_action', { url, mode })
+      window.__TAURI_INTERNALS__.invoke('report_link_action', { url, mode, nonce: NONCE })
         .catch((e) => { try { console.warn('[taw] report_link_action:', e); } catch (_) {} });
     } catch (_) {}
   }
@@ -27,6 +29,7 @@
   // §2.5 優先順位: 修飾キーは明示操作 (優先順位1) なので tab/window を直接指定。
   // 修飾キー無しの target=_blank は 'auto' を送り、Rust 側で BW スイッチに従わせる (優先順位3)。
   document.addEventListener('click', (e) => {
+    if (!e.isTrusted) return;
     const a = findAnchor(e.target);
     if (!a) return;
     let mode = null;
@@ -41,6 +44,7 @@
 
   // 中ボタンクリックは modern browser では `click` 発火しないので auxclick で取る。
   document.addEventListener('auxclick', (e) => {
+    if (!e.isTrusted) return;
     if (e.button !== 1) return;
     const a = findAnchor(e.target);
     if (!a) return;
@@ -55,4 +59,4 @@
     const a = findAnchor(e.target);
     if (a) e.preventDefault();
   }, true);
-})();
+})("__TAW_NONCE__");

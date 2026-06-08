@@ -120,7 +120,7 @@ listen('tab://opened', refreshWindows);
 listen('tab://closed', refreshWindows);
 
 // === §2.2 ダウンロード一覧 ===
-// downloads: [{ id, name, url, status: 'downloading'|'done'|'failed'|'canceled', path }]
+// downloads: [{ id, name, status: 'downloading'|'done'|'failed', path }]
 const downloads = [];
 
 function renderDownloads() {
@@ -141,7 +141,7 @@ function renderDownloads() {
 
     const span = document.createElement('span');
     span.className = 'grow';
-    const sub = d.status === 'done' ? (d.path || '') : d.url;
+    const sub = d.path || '';
     span.title = sub;
     span.innerHTML = '';
     span.appendChild(document.createTextNode(d.name || '(no name)'));
@@ -156,10 +156,9 @@ function renderDownloads() {
     const status = document.createElement('span');
     status.className = 'status';
     status.textContent = ({
-      downloading: 'ダウンロード中／保存先選択待ち',
+      downloading: 'ダウンロード中',
       done: '完了',
       failed: '失敗',
-      canceled: 'キャンセル',
     })[d.status] || d.status;
     li.appendChild(status);
 
@@ -186,7 +185,7 @@ function renderDownloads() {
 }
 
 listen('download://started', e => {
-  downloads.push({ id: e.payload.id, name: e.payload.name, url: e.payload.url, status: 'downloading', path: null });
+  downloads.push({ id: e.payload.id, name: e.payload.name, path: e.payload.path, status: 'downloading' });
   renderDownloads();
 });
 listen('download://finished', e => {
@@ -194,12 +193,6 @@ listen('download://finished', e => {
   if (!d) return;
   if (e.payload.success) { d.status = 'done'; d.path = e.payload.path; }
   else { d.status = 'failed'; }
-  renderDownloads();
-});
-listen('download://canceled', e => {
-  const d = downloads.find(x => x.id === e.payload.id);
-  if (!d) return;
-  d.status = 'canceled';
   renderDownloads();
 });
 

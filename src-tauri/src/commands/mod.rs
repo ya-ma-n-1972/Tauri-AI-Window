@@ -9,6 +9,26 @@ pub mod window;
 
 use tauri::Webview;
 
+/// §A.1: 外部ページ由来 URL を開く経路の許可スキーム。http/https 以外
+/// (file:/javascript:/data: 等) を弾く。report_link_action / on_new_window 経路で使う。
+pub fn is_http_url(url: &str) -> bool {
+    matches!(tauri::Url::parse(url), Ok(u) if matches!(u.scheme(), "http" | "https"))
+}
+
+/// §A.1: content webview ごとの nonce を生成する。`RandomState` は OS エントロピーで
+/// シードされるため、構築ごとに予測不能な値になる (`rand` 依存なし)。128bit hex。
+pub fn gen_nonce(seed: &str) -> String {
+    use std::hash::{BuildHasher, Hasher};
+    let mut h1 = std::collections::hash_map::RandomState::new().build_hasher();
+    h1.write(seed.as_bytes());
+    let a = h1.finish();
+    let mut h2 = std::collections::hash_map::RandomState::new().build_hasher();
+    h2.write(seed.as_bytes());
+    h2.write(&a.to_le_bytes());
+    let b = h2.finish();
+    format!("{:016x}{:016x}", a, b)
+}
+
 // 自作コマンドはどの webview からでも IPC で叩けてしまう前提の二重防御。
 // capability 設定ミスがあっても content webview から特権コマンドが通らないように
 // IPC 入口でラベルを glob 検証する。

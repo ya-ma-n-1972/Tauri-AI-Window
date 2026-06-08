@@ -11,7 +11,9 @@ function normalizeUrl(input) {
 async function navigateSelf(url) {
   if (!url) return;
   try {
-    await invoke('report_link_action', { url, mode: 'self' });
+    // §A.1: newtab は build_content_webview が tauri.localhost ガード付きで注入した nonce を使う。
+    const nonce = window.__TAW_NONCE__ || '';
+    await invoke('report_link_action', { url, mode: 'self', nonce });
   } catch (err) {
     try { console.warn('[newtab] report_link_action self failed:', err); } catch (_) {}
   }

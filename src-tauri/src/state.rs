@@ -20,20 +20,12 @@ pub enum LinkOpenMode {
     Window,
 }
 
-/// §2.2: 進行中/確定待ちのダウンロード1件。`Requested` でステージングへ流しつつ
-/// 非同期の保存ダイアログを出し、ダイアログ結果(`target`/`decided`)と DL 完了(`finished`)が
-/// 揃ったところで移動 or 破棄を一度だけ実行する (`finalized`)。
+/// §2.2: 進行中のダウンロード1件。`Requested` でアプリ管理フォルダ内の最終保存先を確定し、
+/// `Finished` で Console 通知＋フォルダを開く。失敗(path=None)時は `url` で対応付ける。
 pub struct DownloadEntry {
     pub id: u64,
-    pub staging: PathBuf,
-    /// 保存ダイアログで選ばれた最終パス。None かつ decided なら「キャンセル」。
-    pub target: Option<PathBuf>,
-    /// 保存ダイアログが返ったか。
-    pub decided: bool,
-    /// DL 完了状態。None=進行中、Some(success)。
-    pub finished: Option<bool>,
-    /// 移動/削除を一度だけ実行する保証フラグ。
-    pub finalized: bool,
+    pub url: String,
+    pub path: PathBuf,
 }
 
 pub struct AppState {
@@ -82,6 +74,9 @@ pub struct Tab {
     pub webview_label: String,
     pub title: String,
     pub url: String,
+    /// §A.1: この content webview の注入スクリプトだけが知る nonce。content 許可コマンド
+    /// (report_link_action / report_url_change) はこの値の一致を要求し、外部ページの直接 invoke を弾く。
+    pub nonce: String,
 }
 
 #[derive(Serialize, Clone)]

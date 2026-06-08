@@ -34,6 +34,13 @@ pub(crate) async fn open_browser_window_internal(
     initial_url: Option<String>,
     profile_id: String,
 ) -> Result<String, String> {
+    // §A.1: 外部ページ由来 URL もこの経路 (on_new_window) を通るため、http/https に限定。
+    if let Some(u) = &initial_url {
+        if !crate::commands::is_http_url(u) {
+            return Err(format!("scheme not allowed: {}", u));
+        }
+    }
+
     let state = app.state::<AppState>();
     let bw_label = state.alloc_bw_label();
     let tabbar_label = format!("{}-tabbar", bw_label);
@@ -57,6 +64,7 @@ pub(crate) async fn open_browser_window_internal(
     let tab_id = state.alloc_tab_id();
     let tab_webview_label = format!("{}-tab-{}", bw_label, tab_id);
     let is_newtab = initial_url.is_none();
+    let nonce = crate::commands::gen_nonce(&tab_webview_label);
     let (state_url, webview_url) = match &initial_url {
         Some(u) => (
             u.clone(),
@@ -75,6 +83,7 @@ pub(crate) async fn open_browser_window_internal(
                 webview_url,
                 &profile_id,
                 is_newtab,
+                &nonce,
             ),
             LogicalPosition::new(0.0, TABBAR_HEIGHT),
             LogicalSize::new(INITIAL_WIDTH, INITIAL_HEIGHT - TABBAR_HEIGHT),
@@ -94,6 +103,7 @@ pub(crate) async fn open_browser_window_internal(
                     webview_label: tab_webview_label.clone(),
                     title: String::new(),
                     url: state_url.clone(),
+                    nonce: nonce.clone(),
                 }],
                 active_tab_id: Some(tab_id.clone()),
                 profile_id: profile_id.clone(),

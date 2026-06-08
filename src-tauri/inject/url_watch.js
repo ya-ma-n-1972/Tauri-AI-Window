@@ -1,7 +1,8 @@
 // content webview に注入。SPA の URL/タイトル変化を監視し Rust に通知する。
 // `on_navigation` / `on_page_load` はハードナビゲーションでしか発火しないため、
 // pushState 系の soft navigation を捕捉する目的。
-(function () {
+// §A.1: NONCE はクロージャ引数 (top-level に置かない)。report_url_change はこの nonce を要求する。
+(function (NONCE) {
   if (window.__taw_url_watch__) return;
   window.__taw_url_watch__ = true;
   // top-frame 限定 (iframe 内 URL を URL バーに反映させない)。
@@ -21,7 +22,7 @@
       lastUrl = url;
       lastTitle = title;
       if (window.__TAURI_INTERNALS__ && typeof window.__TAURI_INTERNALS__.invoke === 'function') {
-        window.__TAURI_INTERNALS__.invoke('report_url_change', { url, title })
+        window.__TAURI_INTERNALS__.invoke('report_url_change', { url, title, nonce: NONCE })
           .catch((e) => { try { console.warn('[taw] report_url_change failed:', e); } catch (_) {} });
       }
     } catch (_) {}
@@ -72,4 +73,4 @@
     notify();
     attachTitleObserver();
   }
-})();
+})("__TAW_NONCE__");
