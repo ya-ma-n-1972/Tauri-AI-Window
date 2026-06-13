@@ -116,6 +116,16 @@ cargo tree -i windows
 
 ---
 
+## 仕様・制約
+
+### Google Keep は対象外（仕様）
+
+`https://keep.google.com` は本アプリではサポート対象外で、本文が描画されず空白になります。これは下記の基盤側の仕様によるもので、現状の制約として扱っています。ChatGPT・Claude・Gemini などの AI チャットサービスは正常に利用できます。
+
+- **理由:** wry は `window.ipc` を `Object.freeze` かつ再定義・書き換え不可（non-configurable / non-writable）で注入します。このため `ipc` という名前のグローバル変数を使う Google Keep のバンドルがそのオブジェクトと衝突し、本文が描画されません。wry / Tauri ベースの WebView2 アプリ全般に共通する名前衝突の挙動です。
+- **アプリ側の扱い:** 当該プロパティは non-configurable のため、ページ側からもアプリの初期化スクリプトからも変更できません。アプリ層では対処できない基盤側の仕様であり、解消には wry 本体側の対応（注入プロパティの `configurable: true` / `writable: true` 化、またはチャネルの名前空間化）が前提となります。
+- **参考:** 詳細は `DOC/GoogleKeep表示不具合レポート_window-ipc衝突.md`（wry へのアップストリーム報告用にまとめたもの）を参照してください。
+
 ## ロードマップ（案）
 
 - 背景タブの遅延 webview 生成
