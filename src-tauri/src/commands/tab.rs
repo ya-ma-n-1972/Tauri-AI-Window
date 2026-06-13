@@ -54,9 +54,22 @@ pub fn build_content_webview(
     // §A.1: per-webview nonce を注入スクリプトのクロージャ引数として埋め込む。
     // top-level 変数にせずクロージャに隠すことで、後から走るページ JS から読めないようにする。
     // content 許可コマンド (report_link_action / report_url_change) はこの nonce を要求する。
+    // === DIAGNOSTIC (一時): Keep 空白の原因が content 注入かを切り分けるため、外部サイトへの
+    // 3スクリプト (visibility_fix / url_watch / link_intercept) 注入を停止している。
+    // 切り分け後に下記コメントブロックへ戻す。is_newtab のブックマーク注入は維持。 ===
+    let mut init_script = String::new();
+    let _ = nonce; // 注入復活時に使用
+    /*
     let url_watch = crate::inject_scripts::URL_WATCH_JS.replace("__TAW_NONCE__", nonce);
     let link_intercept = crate::inject_scripts::LINK_INTERCEPT_JS.replace("__TAW_NONCE__", nonce);
-    let mut init_script = format!("{}\n;\n{}", url_watch, link_intercept);
+    // visibility_fix は最優先で document-start に流す (ページ JS が visibilityState を読む前に override)。
+    let mut init_script = format!(
+        "{}\n;\n{}\n;\n{}",
+        crate::inject_scripts::VISIBILITY_FIX_JS,
+        url_watch,
+        link_intercept
+    );
+    */
 
     // §A.1 セキュア: newtab はローカルページなので、グリッド用ブックマークと nonce を
     // `tauri.localhost` ガード付きで公開する。この webview が後で remote へ遷移しても
@@ -74,8 +87,17 @@ pub fn build_content_webview(
     // §2.1: Tauri の D&D 横取りを止め、WebView2 のネイティブ HTML5 drop をページに通す
     // (外部ファイル → ページ内のアップロード)。Windows で HTML5 D&D を使うのに必要。
     // 副作用: この webview で Tauri の onDragDropEvent は発火しなくなるが、content では未使用。
+    // L3: 同一サイトのタブを 1 レンダラに寄せてプロセス数を抑える (--process-per-site)。
+    // 重要: Tauri の additional_browser_args を設定すると wry 既定 (unwrap_or_else) が
+    // 上書きされて消えるため、既定の --disable-features を必ず自分で引き継ぐ
+    // (裏取り: wry 0.55.1 src/webview2/mod.rs:294-297)。同一 data_directory の全 content
+    // webview で同一値を渡す必要がある (Tauri #11144) ので、ここ(唯一の生成点)で一律付与。
+    let browser_args =
+        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --process-per-site";
+
     let mut builder = WebviewBuilder::new(webview_label, url)
         .initialization_script_for_all_frames(init_script)
+        .additional_browser_args(browser_args)
         .disable_drag_drop_handler();
     if let Some(d) = data_dir {
         builder = builder.data_directory(d);
@@ -376,6 +398,7 @@ pub(crate) async fn open_tab_internal(
             if let Some(wv) = app.get_webview(&label) {
                 let _ = wv.set_position(LogicalPosition::new(0.0, OFFSCREEN_Y));
             }
+            crate::webview_mem::set_memory_level(app, &label, true); // §2.1: 退避タブは Low
         }
     }
 
@@ -425,6 +448,9 @@ pub(crate) async fn open_tab_internal(
             }
         }
     }
+
+    // §2.1: 生成直後にレベル付与。背景タブ(activate=false)=Low、アクティブ=Normal(既定だが冪等明示)。
+    crate::webview_mem::set_memory_level(app, &tab_webview_label, !activate);
 
     let payload = json!({ "bwLabel": bw_label, "tabId": tab_id });
     let _ = app.emit_to(
@@ -521,6 +547,7 @@ pub async fn close_tab(
                     let _ = wv.set_size(LogicalSize::new(width, content_height));
                     let _ = wv.set_position(LogicalPosition::new(0.0, TABBAR_HEIGHT));
                 }
+                crate::webview_mem::set_memory_level(&app, &new_active_label, false); // §2.1: 復帰は Normal
             }
             let switched = json!({ "bwLabel": bw_label, "tabId": new_active_id });
             let _ = app.emit_to(
@@ -561,7 +588,9 @@ pub fn switch_tab(
     let width = inner.width as f64 / scale;
     let content_height = ((inner.height as f64 / scale) - TABBAR_HEIGHT).max(0.0);
 
-    let target_label: Option<String> = {
+    // target に加え「切替前の active webview ラベル」も取得する (§2.1: メモリレベルを
+    // 出入りする 2 枚だけに限定するため。上書き前に退避する)。
+    let (target_label, prev_active_label): (Option<String>, Option<String>) = {
         let mut windows = state.windows.write();
         let bw = windows
             .get_mut(&bw_label)
@@ -569,11 +598,19 @@ pub fn switch_tab(
         if !bw.tabs.iter().any(|t| t.id == tab_id) {
             return Err(format!("tab not found: {}", tab_id));
         }
+        let prev = bw.active_tab_id.as_ref().and_then(|id| {
+            bw.tabs
+                .iter()
+                .find(|t| &t.id == id)
+                .map(|t| t.webview_label.clone())
+        });
         bw.active_tab_id = Some(tab_id.clone());
-        bw.tabs
+        let target = bw
+            .tabs
             .iter()
             .find(|t| t.id == tab_id)
-            .map(|t| t.webview_label.clone())
+            .map(|t| t.webview_label.clone());
+        (target, prev)
     };
 
     let all_labels: Vec<String> = {
@@ -592,6 +629,16 @@ pub fn switch_tab(
             } else {
                 let _ = wv.set_position(LogicalPosition::new(0.0, OFFSCREEN_Y));
             }
+        }
+    }
+
+    // §2.1: メモリレベルは出入りする 2 枚だけ。他の背景タブは退避時点で Low 済み。ベストエフォート。
+    if let Some(t) = &target_label {
+        crate::webview_mem::set_memory_level(&app, t, false); // 新 active = Normal
+    }
+    if let Some(p) = &prev_active_label {
+        if Some(p) != target_label.as_ref() {
+            crate::webview_mem::set_memory_level(&app, p, true); // 旧 active = Low
         }
     }
 

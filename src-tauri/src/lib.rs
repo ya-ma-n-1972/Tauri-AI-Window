@@ -1,6 +1,7 @@
 mod commands;
 mod inject_scripts;
 mod state;
+mod webview_mem;
 
 use state::AppState;
 use tauri::{Manager, WindowEvent};
