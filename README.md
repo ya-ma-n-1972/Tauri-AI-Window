@@ -18,10 +18,10 @@
 - **ローカル履歴** — 閲覧履歴の記録と一覧
 - **ダウンロード追跡** — アプリ管理フォルダへ自動保存し、完了後にファイル/フォルダを開く操作を提供
 - **プロファイル管理** — WebView2 のユーザーデータフォルダをプロファイル単位で分離（Cookie / localStorage を分離）
-- **WebView2 メモリ最適化** — 非アクティブタブのメモリ使用を抑制
-  - 非アクティブな content タブを画面外へ退避し、`MemoryUsageTargetLevel = Low` に設定
-  - アクティブタブは `Normal` に復帰
-  - ベストエフォート方式で、スクリプト実行・ネットワーク接続・セッションは維持
+- **非アクティブタブの休止（省リソース）** — タブモードで非アクティブになった content タブを非表示にして `TrySuspend` で休止し、メモリ・CPU を抑制。アクティブ化時に `Resume` して再表示します
+  - ログイン状態はプロファイルの Cookie 等に保存されるため、休止しても維持されます
+  - 補助的に `MemoryUsageTargetLevel` も併用（いずれもベストエフォート）
+  - 制約: メディア再生中のタブを休止すると再生が止まります（後述の「仕様・制約」参照）
 
 ---
 
@@ -70,8 +70,9 @@
    ├─ src/
    │  ├─ commands/     # IPC コマンド（window/tab/navigation/link/bookmark/history/profile/download）
    │  ├─ inject/       # content webview に注入する JS
-   │  ├─ state.rs      # アプリ状態（ウィンドウ・タブ・ダウンロード）
-   │  └─ webview_mem.rs# WebView2 メモリ最適化
+   │  ├─ state.rs          # アプリ状態（ウィンドウ・タブ・ダウンロード）
+   │  ├─ webview_mem.rs     # MemoryUsageTargetLevel の切替
+   │  └─ webview_suspend.rs # 非アクティブタブの TrySuspend / Resume
    └─ tauri.conf.json
 ```
 
@@ -113,7 +114,7 @@ cargo tree -i windows
 | タブバー | `bw_a-tabbar` | 各ブラウザウィンドウ上部の操作 UI |
 | コンテンツ | `bw_a-tab-a` | 外部サイトを表示する実体（1 タブ = 1 WebView2） |
 
-非アクティブタブは `hide()` するとページやセッションが切れるため、**非表示にせず画面外へ退避**し、`ICoreWebView2_19::SetMemoryUsageTargetLevel` でメモリ目標を下げます（`src-tauri/src/webview_mem.rs`）。実装はベストエフォートで、WebView2 ランタイムが当該インターフェースに未対応でも、タブ操作は失敗せず継続します。
+非アクティブになった content タブは、`Controller.IsVisible = false` にしたうえで `ICoreWebView2_3::TrySuspend` で休止します（JS 実行を止め、メモリを解放）。再びアクティブになると `Resume` して再表示します（`src-tauri/src/webview_suspend.rs`）。あわせて `ICoreWebView2_19::SetMemoryUsageTargetLevel` も併用します（`src-tauri/src/webview_mem.rs`）。いずれも完全ベストエフォートで、COM 呼び出しは UI スレッド上で実行し、ランタイム未対応や COM 失敗時でもタブ操作は止めません。ログインセッションはタブの休止と独立して、プロファイルの Cookie に保持されます。
 
 ### セキュリティ方針
 
@@ -142,11 +143,19 @@ cargo tree -i windows
 - **アプリ側の扱い:** 当該プロパティは non-configurable のため、ページ側からもアプリの初期化スクリプトからも変更できません。アプリ層では対処できない基盤側の仕様であり、解消には wry 本体側の対応（注入プロパティの `configurable: true` / `writable: true` 化、またはチャネルの名前空間化）が前提となります。
 - **参考:** 詳細は `DOC/GoogleKeep表示不具合レポート_window-ipc衝突.md`（wry へのアップストリーム報告用にまとめたもの）を参照してください。
 
+### メディア再生サイト（YouTube 等）はタブモードでは再生が止まる（制約）
+
+省リソースのため、**タブモードで非アクティブになったタブは休止（suspend）** します。そのため、**音声・動画を再生するサイト（YouTube など）を別タブに切り替えて非アクティブにすると、再生が止まります**（休止＝JS 実行停止のため）。タブに戻れば再開できますが、バックグラウンド再生はできません。
+
+- **AI チャット（ChatGPT / Claude / Gemini など）は問題ありません。** 状態の多くがサーバー側にあり、テキスト主体で、ログインも Cookie で維持されるため、休止・復帰の影響をほぼ受けません。
+- **回避策:** 再生を止めたくないサイトは、タブではなく **別ウィンドウ** で開いてください。ウィンドウ単位では常にアクティブ扱いとなり、休止されません。
+- 将来的には「再生中・通信中は休止しない」といった判定を入れる余地があります（下記ロードマップ参照）。
+
 ## ロードマップ（案）
 
+- 再生中・通信中タブの休止除外（メディア等の自動判定）
 - 背景タブの遅延 webview 生成
-- 長時間アイドルなタブの suspend / resume
-- タブの discard / restore
+- タブの discard / restore（長時間アイドル時の完全破棄と復元）
 - ブラウザ引数の追加実験
 - UI の仕上げとパッケージングフロー
 
