@@ -54,22 +54,17 @@ pub fn build_content_webview(
     // §A.1: per-webview nonce を注入スクリプトのクロージャ引数として埋め込む。
     // top-level 変数にせずクロージャに隠すことで、後から走るページ JS から読めないようにする。
     // content 許可コマンド (report_link_action / report_url_change) はこの nonce を要求する。
-    // === DIAGNOSTIC (一時): Keep 空白の原因が content 注入かを切り分けるため、外部サイトへの
-    // 3スクリプト (visibility_fix / url_watch / link_intercept) 注入を停止している。
-    // 切り分け後に下記コメントブロックへ戻す。is_newtab のブックマーク注入は維持。 ===
-    let mut init_script = String::new();
-    let _ = nonce; // 注入復活時に使用
-    /*
+    // visibility_fix は最優先で document-start に流す (ページ JS が visibilityState を読む前に override)。
+    // Keep 空白の犯人は wry の window.ipc 衝突と判明済み (DOC レポート参照) なので、診断用の
+    // 注入停止は解除し、3スクリプト (visibility_fix / url_watch / link_intercept) を通常注入に戻す。
     let url_watch = crate::inject_scripts::URL_WATCH_JS.replace("__TAW_NONCE__", nonce);
     let link_intercept = crate::inject_scripts::LINK_INTERCEPT_JS.replace("__TAW_NONCE__", nonce);
-    // visibility_fix は最優先で document-start に流す (ページ JS が visibilityState を読む前に override)。
     let mut init_script = format!(
         "{}\n;\n{}\n;\n{}",
         crate::inject_scripts::VISIBILITY_FIX_JS,
         url_watch,
         link_intercept
     );
-    */
 
     // §A.1 セキュア: newtab はローカルページなので、グリッド用ブックマークと nonce を
     // `tauri.localhost` ガード付きで公開する。この webview が後で remote へ遷移しても
@@ -398,7 +393,8 @@ pub(crate) async fn open_tab_internal(
             if let Some(wv) = app.get_webview(&label) {
                 let _ = wv.set_position(LogicalPosition::new(0.0, OFFSCREEN_Y));
             }
-            crate::webview_mem::set_memory_level(app, &label, true); // §2.1: 退避タブは Low
+            // exp/trysuspend: 旧 active を非表示 + TrySuspend で休止する。
+            crate::webview_suspend::suspend(app, &label);
         }
     }
 
@@ -547,6 +543,8 @@ pub async fn close_tab(
                     let _ = wv.set_size(LogicalSize::new(width, content_height));
                     let _ = wv.set_position(LogicalPosition::new(0.0, TABBAR_HEIGHT));
                 }
+                // exp/trysuspend: 新 active を Resume + 再表示してから Normal に戻す。
+                crate::webview_suspend::resume(&app, &new_active_label);
                 crate::webview_mem::set_memory_level(&app, &new_active_label, false); // §2.1: 復帰は Normal
             }
             let switched = json!({ "bwLabel": bw_label, "tabId": new_active_id });
@@ -632,13 +630,15 @@ pub fn switch_tab(
         }
     }
 
-    // §2.1: メモリレベルは出入りする 2 枚だけ。他の背景タブは退避時点で Low 済み。ベストエフォート。
+    // exp/trysuspend: 出入りする 2 枚だけを操作する。新 active は Resume + 再表示 (位置は上の
+    // ループで設定済み)、旧 active は非表示 + TrySuspend で休止。ベストエフォート。
     if let Some(t) = &target_label {
-        crate::webview_mem::set_memory_level(&app, t, false); // 新 active = Normal
+        crate::webview_suspend::resume(&app, t); // 新 active を復帰・可視化
+        crate::webview_mem::set_memory_level(&app, t, false); // Normal
     }
     if let Some(p) = &prev_active_label {
         if Some(p) != target_label.as_ref() {
-            crate::webview_mem::set_memory_level(&app, p, true); // 旧 active = Low
+            crate::webview_suspend::suspend(&app, p); // 旧 active を休止
         }
     }
 
